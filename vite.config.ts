@@ -5,16 +5,17 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   define: {
-    // บังคับให้ Vite แทนที่ process.env.API_KEY ด้วยค่าจาก Netlify Environment Variables
+    // ใช้ตัวเลือกที่ปลอดภัยกว่าในการแทนที่ค่า
     'process.env.API_KEY': JSON.stringify(process.env.API_KEY || "")
   },
   build: {
     outDir: 'dist',
-    emptyOutDir: true,
     sourcemap: false,
-    minify: 'terser'
+    // ป้องกันปัญหาเรื่องชื่อไฟล์บนบางระบบ
+    rollupOptions: {
+      output: {
+        manualChunks: undefined,
+      },
+    },
   },
-  server: {
-    port: 3000
-  }
 });

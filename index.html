@@ -9,28 +9,17 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
   <script>
-    // 🛡️ ป้องกันหน้าจอขาวจาก Error "process is not defined"
+    // 🛡️ Polyfill สำหรับ process.env เพื่อไม่ให้ JS Runtime พัง
     window.process = { env: { API_KEY: "" } };
-    
-    // 🕒 ระบบตรวจจับหน้าจอขาว (ถ้า 4 วินาทีแล้วไม่มีอะไรขึ้น ให้แจ้งเตือน)
-    window.addEventListener('load', () => {
-      setTimeout(() => {
-        const root = document.getElementById('root');
-        if (root && root.innerHTML === "") {
-          document.getElementById('critical-error').style.display = 'flex';
-          console.error("App failed to render within 4 seconds.");
-        }
-      }, 4000);
-    });
   </script>
   <style>
     body { font-family: 'Kanit', sans-serif; margin: 0; padding: 0; }
-    .error-screen {
-      display: none; position: fixed; inset: 0; background: #0f172a;
-      color: white; z-index: 9999; flex-direction: column;
-      align-items: center; justify-content: center; text-align: center; padding: 20px;
-    }
     .questup-logo-bg { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); }
+    #critical-error { 
+      display: none; position: fixed; inset: 0; background: #0f172a; 
+      color: white; z-index: 9999; flex-direction: column; 
+      align-items: center; justify-content: center; text-align: center; padding: 2rem;
+    }
   </style>
 <script type="importmap">
 {
@@ -46,24 +35,33 @@
 </script>
 </head>
 <body class="bg-slate-50 text-slate-900">
-  <!-- หน้าจอแจ้งเตือนเมื่อแอป "ตาย" หรือโหลดไม่ขึ้น -->
-  <div id="critical-error" class="error-screen">
+  <!-- หน้าจอแจ้งเตือนกรณีแอปโหลดไม่ขึ้นจริงๆ -->
+  <div id="critical-error">
     <div class="bg-slate-800 p-8 rounded-[2.5rem] border-2 border-slate-700 shadow-2xl max-w-md">
-      <i class="fas fa-ghost text-5xl text-rose-500 mb-6 animate-bounce"></i>
-      <h1 class="text-2xl font-black mb-4 italic italic uppercase tracking-tighter">หน้าจอขาวโพลน?</h1>
-      <p class="text-slate-400 text-sm mb-6 leading-relaxed">
-        Browser ไม่สามารถรันไฟล์ TypeScript (.tsx) ได้โดยตรง <br>
-        <b>วิธีแก้:</b> คุณต้องตั้งค่า Build Command ใน Netlify เป็น <code>npm run build</code> และ Publish directory เป็น <code>dist</code>
+      <i class="fas fa-exclamation-triangle text-5xl text-rose-500 mb-6"></i>
+      <h1 class="text-2xl font-black mb-4">พบข้อผิดพลาดขณะโหลดแอป</h1>
+      <p class="text-slate-400 text-sm mb-6">
+        อาจเกิดจากการตั้งค่า API_KEY ใน Netlify ไม่ถูกต้อง หรือไฟล์บางอย่างโหลดไม่สำเร็จ
       </p>
-      <button onclick="window.location.reload()" class="w-full py-4 bg-indigo-600 rounded-2xl font-black hover:bg-indigo-700 transition-all">
-        กดเพื่อลองโหลดใหม่อีกครั้ง
+      <button onclick="window.location.reload()" class="w-full py-4 bg-indigo-600 rounded-2xl font-black">
+        ลองใหม่อีกครั้ง
       </button>
     </div>
   </div>
 
   <div id="root"></div>
 
-  <!-- นำเข้าไฟล์หลักแบบ Standard Vite -->
-  <script type="module" src="/index.tsx"></script>
+  <!-- Vite จะจัดการไฟล์นี้ให้เอง ห้ามใส่ / นำหน้าถ้าไม่ได้ตั้งค่าพิเศษ -->
+  <script type="module" src="index.tsx"></script>
+
+  <script>
+    // ตรวจสอบถ้าผ่านไป 5 วินาทีแล้วไม่มีอะไรขึ้นใน root
+    setTimeout(() => {
+      const root = document.getElementById('root');
+      if (root && root.innerHTML === "") {
+        document.getElementById('critical-error').style.display = 'flex';
+      }
+    }, 5000);
+  </script>
 </body>
 </html>

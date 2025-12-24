@@ -47,18 +47,18 @@ const Quiz: React.FC<QuizProps> = ({ questions, language, onComplete }) => {
     <div className="space-y-6 animate-fadeIn">
       <div className="flex items-center justify-between bg-white px-6 py-4 rounded-2xl shadow-sm border border-slate-100">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold">
+          <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold">
             {currentIndex + 1}
           </div>
           <div>
             <h3 className="font-bold text-slate-800">กำลังทำข้อสอบ</h3>
-            <p className="text-xs text-slate-400">โหมด: {language}</p>
+            <p className="text-xs text-slate-400">หัวข้อ: {currentQuestion.topic}</p>
           </div>
         </div>
         <div className="text-right">
-          <p className="text-sm font-bold text-blue-600">คะแนน: {score}</p>
+          <p className="text-sm font-bold text-indigo-600">คะแนน: {score}</p>
           <div className="w-32 h-2 bg-slate-100 rounded-full mt-1 overflow-hidden">
-            <div className="h-full bg-blue-600 transition-all" style={{ width: `${progress}%` }}></div>
+            <div className="h-full bg-indigo-600 transition-all" style={{ width: `${progress}%` }}></div>
           </div>
         </div>
       </div>
@@ -67,7 +67,7 @@ const Quiz: React.FC<QuizProps> = ({ questions, language, onComplete }) => {
         <div className="p-8">
           <div className="mb-6">
             <span className="inline-block px-3 py-1 bg-indigo-50 text-indigo-600 text-[10px] font-black rounded-full mb-3 uppercase tracking-tighter">
-              TOPIC: {currentQuestion.topic}
+              {currentQuestion.topic}
             </span>
             <h2 className="text-xl md:text-2xl font-bold text-slate-800 leading-relaxed">
               {currentQuestion.text}
@@ -76,7 +76,7 @@ const Quiz: React.FC<QuizProps> = ({ questions, language, onComplete }) => {
 
           <div className="space-y-3">
             {currentQuestion.options.map((option, idx) => {
-              let btnClass = "border-slate-100 hover:border-blue-200 text-slate-600";
+              let btnClass = "border-slate-100 hover:border-indigo-200 text-slate-600";
               let icon = null;
 
               if (isAnswered) {
@@ -113,12 +113,12 @@ const Quiz: React.FC<QuizProps> = ({ questions, language, onComplete }) => {
           {isAnswered && (
             <div className="mt-8 p-6 bg-slate-50 rounded-2xl border border-slate-200 animate-slideUp">
               <div className="flex items-center gap-2 mb-2">
-                <i className={`fas ${selectedIdx === currentQuestion.correctIndex ? 'fa-lightbulb text-amber-500' : 'fa-exclamation-circle text-blue-500'}`}></i>
-                <span className="font-black text-slate-800 uppercase tracking-wide">
-                  {selectedIdx === currentQuestion.correctIndex ? 'ทำไมถึงถูก?' : 'มาดูเฉลยกัน'}
+                <i className="fas fa-lightbulb text-amber-500"></i>
+                <span className="font-black text-slate-800 uppercase tracking-wide text-sm">
+                  คำอธิบายเฉลย (ภาษาไทย)
                 </span>
               </div>
-              <p className="text-slate-600 leading-relaxed">
+              <p className="text-slate-600 leading-relaxed text-base">
                 {currentQuestion.explanation}
               </p>
               
