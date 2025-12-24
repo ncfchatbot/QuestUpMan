@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { User } from '../types';
+import { User } from '../types.ts';
 
 interface LoginProps {
   onLogin: (user: User) => void;
@@ -38,16 +38,26 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center animate-fadeIn">
-      <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-slate-100 max-w-md w-full">
-        <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center text-white shadow-xl mx-auto mb-6 rotate-3">
-            <i className="fas fa-bolt text-4xl"></i>
+      <div className="bg-white p-10 rounded-[3rem] shadow-2xl border border-slate-100 max-w-md w-full relative overflow-hidden">
+        {/* Background Accent */}
+        <div className="absolute -top-24 -right-24 w-48 h-48 questup-logo-bg opacity-10 rounded-full blur-3xl"></div>
+        
+        <div className="text-center mb-8 relative z-10">
+          <div className="w-24 h-24 questup-logo-bg rounded-[2rem] flex items-center justify-center text-white shadow-2xl mx-auto mb-6 rotate-3 relative hover:rotate-0 transition-transform duration-500">
+            <i className="fas fa-gamepad text-orange-400 text-5xl drop-shadow-lg"></i>
+            <i className="fas fa-arrow-up text-xl text-yellow-300 absolute top-3 right-3 animate-pulse"></i>
+            <div className="absolute -top-2 -left-2 text-yellow-200">
+               <i className="fas fa-star text-xs"></i>
+            </div>
+            <div className="absolute bottom-2 left-4 text-yellow-100 opacity-60">
+               <i className="fas fa-star text-[10px]"></i>
+            </div>
           </div>
-          <h1 className="text-3xl font-black text-slate-800 mb-2">เข้าสู่ระบบ QuestUpMan</h1>
-          <p className="text-slate-500">ติวสอบแม่นยำ แยกโปรไฟล์รายบุคคล</p>
+          <h1 className="text-4xl font-black text-slate-800 mb-1 tracking-tighter">QuestUp</h1>
+          <p className="text-slate-500 font-medium">เก็งข้อสอบแม่นยำด้วยพลัง AI</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6 relative z-10">
           {/* Avatar Upload Section */}
           <div className="flex flex-col items-center gap-3">
             <div 
@@ -63,7 +73,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   <i className="fas fa-user text-slate-300 text-3xl"></i>
                 )}
               </div>
-              <div className="absolute bottom-0 right-0 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs border-2 border-white shadow-lg group-hover:scale-110 transition-transform">
+              <div className="absolute bottom-0 right-0 w-8 h-8 questup-logo-bg rounded-full flex items-center justify-center text-white text-xs border-2 border-white shadow-lg group-hover:scale-110 transition-transform">
                 <i className="fas fa-camera"></i>
               </div>
             </div>
@@ -89,7 +99,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             />
           </div>
           <div>
-            <label className="block text-sm font-bold text-slate-700 mb-2">อีเมล (เพื่อเก็บประวัติแยกคน)</label>
+            <label className="block text-sm font-bold text-slate-700 mb-2">อีเมล (แยกโปรไฟล์รายคน)</label>
             <input
               type="email"
               required
@@ -102,14 +112,14 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
           <button
             type="submit"
-            className="w-full py-5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-2xl font-black text-xl shadow-xl shadow-blue-100 transition-all active:scale-95"
+            className="w-full py-5 questup-logo-bg hover:brightness-110 text-white rounded-2xl font-black text-xl shadow-xl shadow-blue-100 transition-all active:scale-95"
           >
-            เริ่มต้นใช้งานฟรี <i className="fas fa-arrow-right ml-2"></i>
+            เข้าสู่เควสติวสอบ <i className="fas fa-bolt ml-2"></i>
           </button>
         </form>
 
-        <p className="mt-8 text-center text-xs text-slate-400">
-          ข้อมูลของคุณจะถูกเก็บแยกส่วนตัว รองรับการใช้งานพร้อมกันหลายคนทั่วโลก
+        <p className="mt-8 text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+          Personalized Learning Platform
         </p>
       </div>
     </div>

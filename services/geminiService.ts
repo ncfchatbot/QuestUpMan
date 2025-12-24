@@ -1,13 +1,11 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { ReferenceFile, Grade, Language, Question, AnalysisResult } from "../types";
+import { ReferenceFile, Grade, Language, Question, AnalysisResult } from "../types.ts";
 
-// Helper สำหรับตรวจสอบ API Key
 const getApiKey = () => {
   return process.env.API_KEY || (window as any).process?.env?.API_KEY || "";
 };
 
-// Function to handle exponential backoff retry for high volume traffic
 async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 2000): Promise<T> {
   try {
     return await fn();
@@ -50,25 +48,17 @@ export async function generateExamFromFile(
   Task: ${targetingPrompt}
   Exam Language: ${language}
   Question Count: ${count}
-
   Context: The attached files are study materials. 
-  
   CRITICAL INSTRUCTION:
   - Generate exactly ${count} multiple choice questions.
   - The "explanation" field MUST be written in Thai. 
-  - The Thai explanation should be very easy to understand (ภาษาเข้าใจง่าย) for a student at the ${grade} level.
-  - If the Exam Language is English, the questions/options must be English, but the EXPLANATION must be Thai.
-
-  Return a JSON array of objects.`;
+  - Return a JSON array of objects.`;
 
   return withRetry(async () => {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: {
-        parts: [
-          ...fileParts,
-          { text: prompt }
-        ]
+        parts: [...fileParts, { text: prompt }]
       },
       config: {
         responseMimeType: "application/json",
@@ -107,14 +97,7 @@ export async function analyzeExamResults(
     correct: q.correctIndex === userAnswers[i]
   }));
 
-  const prompt = `Analyze these exam results for a specific student: ${JSON.stringify(history)}.
-  1. Summarize performance in Thai.
-  2. Identify specific strengths (topics).
-  3. Identify weak topics (critical for recovery).
-  4. Provide reading advice to improve.
-  
-  Everything must be in friendly, easy-to-read Thai language.
-  Return as JSON.`;
+  const prompt = `Analyze these exam results: ${JSON.stringify(history)}. Everything in Thai. Return as JSON.`;
 
   return withRetry(async () => {
     const response = await ai.models.generateContent({

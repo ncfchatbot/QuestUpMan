@@ -1,6 +1,6 @@
 {
-  "name": "QuestUpMan ⚡️ เก็งข้อสอบอย่างแม่น",
-  "short_name": "QuestUpMan",
-  "description": "App ช่วยเก็งข้อสอบอย่างแม่นยำด้วย AI ",
+  "name": "QuestUp ⚡️ เก็งข้อสอบแม่นยำ",
+  "short_name": "QuestUp",
+  "description": "แอปช่วยเก็งข้อสอบแม่นยำด้วย AI ติวตรงจุดสูงสุด 50 ข้อ แยกโปรไฟล์รายบุคคลเพื่อการเรียนรู้อย่างมีประสิทธิภาพ",
   "requestFramePermissions": []
 }

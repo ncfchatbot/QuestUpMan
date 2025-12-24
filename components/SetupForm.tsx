@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Grade, Language, ReferenceFile } from '../types';
+import { Grade, Language, ReferenceFile } from '../types.ts';
 
 interface SetupFormProps {
   onStart: (files: ReferenceFile[], grade: Grade, lang: Language, count: number) => void;
@@ -37,15 +37,15 @@ const SetupForm: React.FC<SetupFormProps> = ({ onStart }) => {
   return (
     <div className="space-y-6 animate-fadeIn">
       <div className="text-center mb-8">
-        <h1 className="text-4xl font-black text-slate-800 mb-2">เก็งข้อสอบตรงจุด 🚀</h1>
-        <p className="text-slate-500">อัปโหลดแนวข้อสอบหรือชีทเรียน แล้วให้ AI ช่วยติวให้ตรงประเด็น</p>
+        <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tighter">เริ่มต้นภารกิจ 🚀</h1>
+        <p className="text-slate-500 font-medium">อัปโหลดชีทเรียน แล้วให้ QuestUp ช่วยเก็งข้อสอบให้คุณ</p>
       </div>
 
-      <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-100">
+      <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
         <div className="space-y-8">
           {/* File Upload Section */}
           <div className="relative group">
-            <label className="block text-sm font-bold text-slate-700 mb-3">1. อัปโหลดไฟล์แนวข้อสอบ / หนังสือเรียน</label>
+            <label className="block text-sm font-bold text-slate-700 mb-3">1. อัปโหลดไฟล์เนื้อหาติวสอบ</label>
             <div className="border-2 border-dashed border-slate-200 group-hover:border-blue-400 rounded-2xl p-10 transition-all bg-slate-50/50 text-center relative overflow-hidden">
               <input 
                 type="file" 
@@ -58,8 +58,8 @@ const SetupForm: React.FC<SetupFormProps> = ({ onStart }) => {
                 <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mx-auto text-blue-600 border border-slate-100">
                   <i className="fas fa-file-upload text-2xl"></i>
                 </div>
-                <p className="text-slate-600 font-medium">ลากไฟล์มาวาง หรือคลิกเพื่อเลือกไฟล์</p>
-                <p className="text-xs text-slate-400">PDF, รูปถ่ายหน้าหนังสือ, Word, Excel</p>
+                <p className="text-slate-600 font-bold">ลากไฟล์มาวาง หรือคลิกที่นี่</p>
+                <p className="text-xs text-slate-400">PDF, รูปถ่าย, Word, Excel</p>
               </div>
             </div>
             
@@ -80,7 +80,7 @@ const SetupForm: React.FC<SetupFormProps> = ({ onStart }) => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-3">2. ระดับชั้น (Grade / Matayom)</label>
+              <label className="block text-sm font-bold text-slate-700 mb-3">2. ระดับชั้นที่สอบ</label>
               <div className="space-y-4">
                 <div>
                   <p className="text-[10px] uppercase font-black text-slate-400 mb-1">Primary (ประถม)</p>
@@ -126,19 +126,18 @@ const SetupForm: React.FC<SetupFormProps> = ({ onStart }) => {
                       key={l}
                       onClick={() => setLang(l)}
                       className={`flex-1 py-3 rounded-xl border-2 transition-all font-bold ${
-                        lang === l ? 'border-indigo-600 bg-indigo-50 text-indigo-600' : 'border-slate-50 text-slate-400 hover:border-slate-200'
+                        lang === l ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-50 text-slate-400 hover:border-slate-200'
                       }`}
                     >
-                      {l === 'Thai' ? 'ภาษาไทย' : 'English'}
+                      {l === 'Thai' ? 'ไทย' : 'English'}
                     </button>
                   ))}
                 </div>
-                <p className="text-[10px] text-slate-400 mt-1 italic">* เฉลยจะเป็นภาษาไทยเสมอเพื่อความเข้าใจง่าย</p>
               </div>
 
               <div>
                 <div className="flex justify-between items-end mb-3">
-                   <label className="block text-sm font-bold text-slate-700">4. จำนวนข้อสอบ</label>
+                   <label className="block text-sm font-bold text-slate-700">4. จำนวนข้อ</label>
                    <span className="text-xl font-black text-blue-600">{count} ข้อ</span>
                 </div>
                 <input 
@@ -146,10 +145,6 @@ const SetupForm: React.FC<SetupFormProps> = ({ onStart }) => {
                   onChange={(e) => setCount(parseInt(e.target.value))}
                   className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-blue-600"
                 />
-                <div className="flex justify-between text-[10px] text-slate-400 font-bold mt-1 uppercase">
-                  <span>1 ข้อ</span>
-                  <span>50 ข้อ</span>
-                </div>
               </div>
             </div>
           </div>
@@ -157,9 +152,9 @@ const SetupForm: React.FC<SetupFormProps> = ({ onStart }) => {
           <button
             disabled={files.length === 0}
             onClick={() => onStart(files, grade, lang, count)}
-            className="w-full py-5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:from-slate-300 disabled:to-slate-300 disabled:cursor-not-allowed text-white rounded-2xl font-black text-xl shadow-xl shadow-blue-100 transition-all active:scale-95"
+            className="w-full py-5 questup-logo-bg hover:brightness-110 disabled:grayscale disabled:cursor-not-allowed text-white rounded-2xl font-black text-xl shadow-xl shadow-blue-100 transition-all active:scale-95"
           >
-            สร้างชุดข้อสอบ QuestUpMan <i className="fas fa-bolt ml-2"></i>
+            สร้างชุดข้อสอบ QuestUp <i className="fas fa-bolt ml-2"></i>
           </button>
         </div>
       </div>

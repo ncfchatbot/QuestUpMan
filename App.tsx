@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
-import { ViewState, ExamSession, Question, Grade, Language, ReferenceFile, User } from './types';
-import Header from './components/Header';
-import SetupForm from './components/SetupForm';
-import Quiz from './components/Quiz';
-import Analysis from './components/Analysis';
-import Login from './components/Login';
-import { generateExamFromFile } from './services/geminiService';
+import { ViewState, ExamSession, Question, Grade, Language, ReferenceFile, User } from './types.ts';
+import Header from './components/Header.tsx';
+import SetupForm from './components/SetupForm.tsx';
+import Quiz from './components/Quiz.tsx';
+import Analysis from './components/Analysis.tsx';
+import Login from './components/Login.tsx';
+import { generateExamFromFile } from './services/geminiService.ts';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -15,29 +15,28 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [userAnswers, setUserAnswers] = useState<(number | null)[]>([]);
 
-  // Simulate persistent login within session
   useEffect(() => {
     try {
-      const savedUser = sessionStorage.getItem('questupman_user');
+      const savedUser = sessionStorage.getItem('questup_user');
       if (savedUser && savedUser !== 'undefined') {
         setUser(JSON.parse(savedUser));
         setView('setup');
       }
     } catch (e) {
       console.error("Failed to parse saved user", e);
-      sessionStorage.removeItem('questupman_user');
+      sessionStorage.removeItem('questup_user');
     }
   }, []);
 
   const handleLogin = (newUser: User) => {
     setUser(newUser);
-    sessionStorage.setItem('questupman_user', JSON.stringify(newUser));
+    sessionStorage.setItem('questup_user', JSON.stringify(newUser));
     setView('setup');
   };
 
   const handleLogout = () => {
     setUser(null);
-    sessionStorage.removeItem('questupman_user');
+    sessionStorage.removeItem('questup_user');
     setView('login');
   };
 
@@ -64,8 +63,8 @@ export default function App() {
     } catch (err: any) {
       console.error(err);
       const msg = err.message?.includes("API Key") 
-        ? "ระบบขัดข้อง: ไม่พบ API Key สำหรับประมวลผล กรุณาติดต่อผู้ดูแลระบบ"
-        : "AI ไม่สามารถสร้างข้อสอบได้ในขณะนี้เนื่องจากปริมาณการใช้งานสูง (Rate Limit) กรุณาลองใหม่อีกครั้งใน 1 นาที";
+        ? "ระบบขัดข้อง: ไม่พบ API Key สำหรับประมวลผล กรุณาตรวจสอบการตั้งค่า Environment Variable"
+        : "AI ไม่สามารถสร้างข้อสอบได้ในขณะนี้ กรุณาลองใหม่อีกครั้งใน 1 นาที";
       alert(msg);
     } finally {
       setIsLoading(false);
@@ -98,16 +97,18 @@ export default function App() {
       <main className="container mx-auto px-4 py-8 max-w-4xl">
         {isLoading && (
           <div className="fixed inset-0 bg-white/90 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 text-center animate-fadeIn">
-            <div className="relative w-24 h-24 mb-6">
-              <div className="absolute inset-0 border-4 border-blue-100 rounded-full"></div>
-              <div className="absolute inset-0 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+            <div className="relative w-28 h-28 mb-8">
+              <div className="absolute inset-0 questup-logo-bg rounded-[2rem] animate-pulse"></div>
               <div className="absolute inset-0 flex items-center justify-center">
-                <i className="fas fa-robot text-blue-600 text-2xl animate-bounce"></i>
+                <i className="fas fa-gamepad text-orange-400 text-5xl animate-bounce"></i>
+              </div>
+              <div className="absolute -top-4 -right-4 w-10 h-10 questup-logo-bg rounded-full flex items-center justify-center text-white border-2 border-white animate-spin-slow">
+                 <i className="fas fa-star text-xs"></i>
               </div>
             </div>
-            <h2 className="text-2xl font-bold text-slate-800 mb-2">QuestUpMan กำลังประมวลผลให้คุณ</h2>
-            <p className="text-slate-500 max-w-sm">
-              เรากำลังแยกส่วนประมวลผลสำหรับคิวของคุณ เพื่อรองรับการใช้งานพร้อมกันจำนวนมาก...
+            <h2 className="text-3xl font-black text-slate-800 mb-2 tracking-tighter">QuestUp AI</h2>
+            <p className="text-slate-500 max-w-sm font-medium">
+              กำลังวิเคราะห์ข้อมูลและเก็งข้อสอบให้ตรงจุดที่สุด...
             </p>
           </div>
         )}

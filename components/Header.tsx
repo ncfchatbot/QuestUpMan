@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { User } from '../types';
+import { User } from '../types.ts';
 
 interface HeaderProps {
   user: User | null;
@@ -15,14 +15,16 @@ const Header: React.FC<HeaderProps> = ({ user, onHome, onLogout }) => {
     <header className="bg-white shadow-sm sticky top-0 z-40 border-b border-blue-100">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         <div 
-          className="flex items-center gap-2 cursor-pointer group"
+          className="flex items-center gap-3 cursor-pointer group"
           onClick={onHome}
         >
-          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg group-hover:bg-blue-700 transition-colors">
-            <i className="fas fa-bolt text-xl"></i>
+          <div className="w-10 h-10 questup-logo-bg rounded-xl flex items-center justify-center text-white shadow-lg group-hover:scale-105 transition-transform relative overflow-hidden">
+            <i className="fas fa-gamepad text-orange-400 text-lg z-10"></i>
+            <i className="fas fa-arrow-up text-[10px] text-yellow-300 absolute top-1 right-1 opacity-80"></i>
+            <i className="fas fa-star text-[6px] text-yellow-200 absolute bottom-1 left-1 opacity-60"></i>
           </div>
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-700 to-indigo-600 bg-clip-text text-transparent hidden sm:block">
-            QuestUpMan
+          <h1 className="text-2xl font-black bg-gradient-to-r from-blue-700 to-indigo-600 bg-clip-text text-transparent hidden sm:block tracking-tighter">
+            QuestUp
           </h1>
         </div>
         
