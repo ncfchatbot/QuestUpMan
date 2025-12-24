@@ -2,21 +2,21 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { ReferenceFile, Grade, Language, Question, AnalysisResult } from "../types.ts";
 
-/**
- * Helper to retry API calls on rate limits or service unavailability
- */
-async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 2000): Promise<T> {
+const getApiKey = () => {
+  return process.env.API_KEY || (window as any).process?.env?.API_KEY;
+};
+
+async function withRetry<T>(fn: () => Promise<T>, retries = 2, delay = 1000): Promise<T> {
   try {
     return await fn();
   } catch (error: any) {
     const errorMsg = error?.message || "";
-    // ถ้าหาโมเดลไม่เจอ หรือ Key ผิดพลาด ไม่ต้อง Retry
-    if (errorMsg.includes("not found") || errorMsg.includes("API key not valid")) {
+    // ถ้าเป็น Error 403 (Billing) หรือ 404 (Key ไม่เจอ) ให้โยนออกไปเลย ไม่ต้อง Retry
+    if (errorMsg.includes("403") || errorMsg.includes("404") || errorMsg.includes("not found") || errorMsg.includes("billing")) {
       throw error;
     }
     
     if (retries > 0 && (error.status === 429 || error.status === 503)) {
-      console.warn(`API Rate limit hit, retrying in ${delay}ms...`);
       await new Promise(resolve => setTimeout(resolve, delay));
       return withRetry(fn, retries - 1, delay * 2);
     }
@@ -24,9 +24,6 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 2000): Pr
   }
 }
 
-/**
- * Generates exam questions using Gemini Flash (More stable and widely available)
- */
 export async function generateExamFromFile(
   files: ReferenceFile[],
   grade: Grade,
@@ -34,11 +31,8 @@ export async function generateExamFromFile(
   count: number,
   weakTopics?: string[]
 ): Promise<Question[]> {
-  // ดึง Key จาก process.env หรือ window context
-  const apiKey = process.env.API_KEY || (window as any).process?.env?.API_KEY;
-  if (!apiKey) {
-    throw new Error("API_KEY_MISSING");
-  }
+  const apiKey = getApiKey();
+  if (!apiKey) throw new Error("API_KEY_INVALID");
   
   const fileParts = files.map(f => ({
     inlineData: {
@@ -48,24 +42,24 @@ export async function generateExamFromFile(
   }));
 
   const targetingPrompt = weakTopics && weakTopics.length > 0 
-    ? `เน้นประเด็นที่นักเรียนยังไม่เข้าใจ (Weak topics): ${weakTopics.join(', ')}`
-    : "สร้างข้อสอบเก็งแนวสำหรับนักเรียนรายบุคคล";
+    ? `FOCUS AREAS: ${weakTopics.join(', ')}`
+    : "Generate realistic exam questions based on the attached files.";
 
-  const prompt = `คุณคือผู้เชี่ยวชาญด้านหลักสูตรการศึกษาไทย (สพฐ.) สำหรับชั้น ${grade}
-  ภารกิจ: ${targetingPrompt}
-  ภาษาของข้อสอบ: ${language}
-  จำนวนข้อ: ${count}
+  const prompt = `Act as an expert Thai curriculum educator for Grade ${grade}.
+  Task: ${targetingPrompt}
+  Output Language: ${language}
+  Total Questions: ${count}
   
-  คำแนะนำพิเศษ:
-  - วิเคราะห์ไฟล์แนบอย่างละเอียด
-  - ออกข้อสอบแบบเลือกตอบ 4 ตัวเลือก
-  - เฉลย (Explanation) ต้องเป็นภาษาไทยที่เข้าใจง่ายสำหรับเด็กชั้น ${grade}
-  - กลับค่าเป็น JSON Array เท่านั้น`;
+  Requirements:
+  - Analyze the attached materials deeply.
+  - Create 4 multiple choice options.
+  - Explanation MUST be in THAI.
+  - Return ONLY a JSON Array.`;
 
   return withRetry(async () => {
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview", // เปลี่ยนจาก pro เป็น flash เพื่อความเสถียรสูงสุด
+      model: "gemini-3-flash-preview",
       contents: {
         parts: [...fileParts, { text: prompt }]
       },
@@ -88,33 +82,24 @@ export async function generateExamFromFile(
       }
     });
 
-    const jsonStr = (response.text || "").trim();
-    const data = JSON.parse(jsonStr || "[]");
-    return data.map((q: any, i: number) => ({ ...q, id: `q-${Date.now()}-${i}` }));
+    return JSON.parse(response.text || "[]").map((q: any, i: number) => ({ ...q, id: `q-${Date.now()}-${i}` }));
   });
 }
 
-/**
- * Analyzes exam results
- */
 export async function analyzeExamResults(
   questions: Question[], 
   userAnswers: (number | null)[]
 ): Promise<AnalysisResult> {
-  const apiKey = process.env.API_KEY || (window as any).process?.env?.API_KEY;
-  if (!apiKey) throw new Error("API_KEY_MISSING");
+  const apiKey = getApiKey();
+  if (!apiKey) throw new Error("API_KEY_INVALID");
 
   const history = questions.map((q, i) => ({
     topic: q.topic,
     correct: q.correctIndex === userAnswers[i]
   }));
 
-  const prompt = `วิเคราะห์ผลสอบชุดนี้: ${JSON.stringify(history)}
-  1. สรุปภาพรวมใน 1-2 ประโยค (Thai)
-  2. บอกจุดแข็ง (Strengths) เป็นหัวข้อ
-  3. บอกจุดที่ควรปรับปรุง (Weaknesses) เป็นหัวข้อ
-  4. ให้คำแนะนำในการอ่านหนังสือ (Advice)
-  กลับค่าเป็น JSON`;
+  const prompt = `Analyze this performance: ${JSON.stringify(history)}
+  Return JSON with: summary (Thai), strengths (array), weaknesses (array), readingAdvice (Thai)`;
 
   return withRetry(async () => {
     const ai = new GoogleGenAI({ apiKey });
@@ -135,8 +120,6 @@ export async function analyzeExamResults(
         }
       }
     });
-    
-    const jsonStr = (response.text || "").trim();
-    return JSON.parse(jsonStr || "{}");
+    return JSON.parse(response.text || "{}");
   });
 }

@@ -15,9 +15,10 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [userAnswers, setUserAnswers] = useState<(number | null)[]>([]);
   const [hasKey, setHasKey] = useState<boolean>(true);
+  const [isBillingError, setIsBillingError] = useState<boolean>(false);
 
   useEffect(() => {
-    checkApiKeyInitial();
+    checkKeyStatus();
     
     try {
       const savedUser = sessionStorage.getItem('questup_user');
@@ -26,36 +27,30 @@ export default function App() {
         setView('setup');
       }
     } catch (e) {
-      console.error("Failed to parse saved user", e);
-      sessionStorage.removeItem('questup_user');
+      console.error("Failed to load session", e);
     }
   }, []);
 
-  // ตรวจสอบความพร้อมของ API Key
-  const checkApiKeyInitial = async () => {
-    // ถ้ามี Key ใน process.env (เช่น จาก Netlify ที่ถูก Build มา) ให้ผ่านเลย
-    const envKey = process.env.API_KEY || (window as any).process?.env?.API_KEY;
-    if (envKey && envKey !== "undefined" && envKey !== "") {
-      setHasKey(true);
-      return;
-    }
-    
-    // ถ้าไม่มีให้เช็คผ่าน aistudio dialog
+  const checkKeyStatus = async () => {
     try {
-      const selected = await (window as any).aistudio?.hasSelectedApiKey();
-      setHasKey(!!selected);
+      const isSelected = await (window as any).aistudio?.hasSelectedApiKey();
+      const hasEnv = !!(process.env.API_KEY);
+      setHasKey(isSelected || hasEnv);
     } catch (e) {
       setHasKey(false);
     }
   };
 
-  const handleOpenKeySelector = async () => {
+  const handleConnectKey = async () => {
     try {
+      // เรียกหน้าต่างระบบเพื่อให้ผู้ใช้เลือก Key ตัวที่ผูก Billing สำเร็จแล้ว
       await (window as any).aistudio?.openSelectKey();
-      // เมื่อกดเปิดแล้ว ให้ถือว่ามี Key ไว้ก่อนเพื่อความไหลลื่น (SDK จะจัดการ Key เอง)
       setHasKey(true);
+      setIsBillingError(false);
+      // รีเฟรชแอปเพื่อให้ใช้ Key ล่าสุดทันที
+      setTimeout(() => window.location.reload(), 500);
     } catch (e) {
-      console.error("Failed to open key selector", e);
+      console.error("Connection failed", e);
     }
   };
 
@@ -74,6 +69,8 @@ export default function App() {
   const handleStartExam = async (files: ReferenceFile[], grade: Grade, lang: Language, count: number, weakTopics?: string[]) => {
     if (!user) return;
     setIsLoading(true);
+    setIsBillingError(false);
+
     try {
       const questions = await generateExamFromFile(files, grade, lang, count, weakTopics);
       setSession({
@@ -89,16 +86,15 @@ export default function App() {
       setUserAnswers(new Array(questions.length).fill(null));
       setView('quiz');
     } catch (err: any) {
-      console.error("Generation Error:", err);
       const msg = err.message || "";
-      
-      if (msg === "API_KEY_MISSING") {
-        setHasKey(false);
-      } else if (msg.includes("Requested entity was not found")) {
-        alert("โมเดลที่เรียกใช้ยังไม่พร้อมใช้งานสำหรับ API Key นี้ กรุณาลองใหม่ หรือเลือกใช้ Key อื่น");
+      console.error("API Error Trace:", msg);
+
+      // ดักจับปัญหา Billing/Key โดยเฉพาะ
+      if (msg.includes("billing") || msg.includes("403") || msg.includes("not found") || msg.includes("API_KEY_INVALID")) {
+        setIsBillingError(true);
         setHasKey(false);
       } else {
-        alert("ขออภัย ระบบขัดข้องชั่วคราว: " + msg);
+        alert("ขออภัย ระบบขัดข้อง: " + msg);
       }
     } finally {
       setIsLoading(false);
@@ -113,85 +109,103 @@ export default function App() {
     setView('analysis');
   };
 
-  const handleRetryWithWeaknesses = (weaknesses: string[]) => {
-    if (session) {
-      handleStartExam(session.files, session.grade, session.language, session.questionCount, weaknesses);
-    }
-  };
-
-  const resetToSetup = () => {
-    setSession(null);
-    setView('setup');
-  };
-
   return (
     <div className="min-h-screen bg-slate-50 font-['Kanit']">
-      <Header user={user} onHome={resetToSetup} onLogout={handleLogout} />
+      <Header 
+        user={user} 
+        onHome={() => setView('setup')} 
+        onLogout={handleLogout} 
+        onManageKey={handleConnectKey}
+      />
       
-      {!hasKey && (
-        <div className="fixed inset-0 z-[60] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-[2.5rem] p-8 max-w-md w-full text-center shadow-2xl animate-slideUp">
-            <div className="w-20 h-20 questup-logo-bg rounded-2xl flex items-center justify-center text-white mx-auto mb-6 shadow-xl relative">
-              <i className="fas fa-key text-3xl"></i>
+      {/* 1. ปุ่มลอยมุมขวาล่าง (Floating Badge) เพื่อจัดการ Key */}
+      <button 
+        onClick={handleConnectKey}
+        className="fixed bottom-6 right-6 z-[60] group flex flex-col items-end gap-2"
+        title="จัดการ API Key"
+      >
+        <span className="bg-slate-800 text-white text-[10px] py-1 px-3 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity font-bold uppercase tracking-widest shadow-xl">
+          คลิกเพื่อเปลี่ยน Key
+        </span>
+        <div className={`px-5 py-3 rounded-2xl text-[12px] font-black flex items-center gap-3 shadow-2xl backdrop-blur-md border transition-all hover:scale-105 active:scale-95 ${hasKey ? 'bg-emerald-500/10 text-emerald-600 border-emerald-200' : 'bg-rose-500/10 text-rose-600 border-rose-200'}`}>
+          <div className={`w-3 h-3 rounded-full animate-pulse ${hasKey ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
+          AI STATUS: {hasKey ? 'READY' : 'ERROR'}
+          <i className="fas fa-key opacity-40 group-hover:rotate-12 transition-transform text-lg ml-2"></i>
+        </div>
+      </button>
+
+      {/* 2. หน้าจอแจ้งเตือน (Overlay) เมื่อมีปัญหา Key/Billing */}
+      {(!hasKey || isBillingError) && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/90 backdrop-blur-lg flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-[3rem] p-10 max-w-lg w-full text-center shadow-2xl border-t-[12px] border-indigo-600 animate-slideUp">
+            <div className="w-24 h-24 bg-indigo-50 rounded-[2rem] flex items-center justify-center text-indigo-600 mx-auto mb-8 shadow-inner">
+              <i className="fas fa-shield-halved text-4xl"></i>
             </div>
-            <h2 className="text-2xl font-black text-slate-800 mb-2">เชื่อมต่อขุมพลัง QuestUp</h2>
-            <p className="text-slate-500 mb-6 font-medium text-sm leading-relaxed">
-              เพื่อให้ AI เริ่มทำงานได้ คุณต้องทำการเชื่อมต่อ API Key ก่อน <br/>
-              (หากคุณตั้งค่าใน Netlify แล้วแต่ยังเห็นหน้านี้ โปรดคลิกปุ่มด้านล่างเพื่อยืนยันอีกครั้ง)
-            </p>
+            
+            <h2 className="text-3xl font-black text-slate-800 mb-4 tracking-tighter">
+              {isBillingError ? "ตรวจพบปัญหา Billing" : "ยังไม่ได้เชื่อมต่อระบบ AI"}
+            </h2>
+            
+            <div className="bg-slate-50 rounded-3xl p-6 text-left mb-8 border border-slate-100">
+              <p className="text-sm text-slate-700 font-bold mb-4 flex items-center gap-2">
+                <i className="fas fa-lightbulb text-amber-500"></i> ทำตาม 3 ขั้นตอนนี้เพื่อให้ใช้งานได้:
+              </p>
+              <ul className="text-xs text-slate-500 space-y-4 font-medium">
+                <li className="flex gap-3">
+                  <span className="flex-shrink-0 w-5 h-5 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[10px]">1</span>
+                  <span>ไปที่ <b>Google AI Studio</b> และสร้าง API Key ใหม่ โดยเลือกโปรเจกต์ที่ผูกบัตรเครดิตแล้ว (Project: <u>gen-lang-client-0630622454</u>)</span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex-shrink-0 w-5 h-5 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[10px]">2</span>
+                  <span>กลับมาที่หน้าจอนี้แล้วกดปุ่ม <b>"อัปเดตการเชื่อมต่อ"</b> สีน้ำเงินด้านล่าง</span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex-shrink-0 w-5 h-5 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[10px]">3</span>
+                  <span>เลือก Key ตัวใหม่ที่คุณเพิ่งสร้างจากรายการที่ปรากฏขึ้น</span>
+                </li>
+              </ul>
+            </div>
+
             <button 
-              onClick={handleOpenKeySelector}
-              className="w-full py-4 questup-logo-bg text-white rounded-2xl font-black text-lg shadow-lg hover:brightness-110 transition-all active:scale-95 mb-4"
+              onClick={handleConnectKey}
+              className="w-full py-6 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xl shadow-xl shadow-indigo-100 transition-all active:scale-95 flex items-center justify-center gap-4"
             >
-              ตั้งค่า / ยืนยัน API Key <i className="fas fa-plug ml-2"></i>
+              อัปเดตการเชื่อมต่อ <i className="fas fa-bolt text-yellow-300"></i>
             </button>
-            <div className="flex flex-col gap-2">
-              <a 
-                href="https://ai.google.dev/gemini-api/docs/billing" 
-                target="_blank" 
-                className="text-xs font-bold text-blue-600 hover:underline"
-              >
-                ทำไมต้องใช้ API Key? (Google Billing Docs)
-              </a>
-            </div>
+            
+            <p className="mt-6 text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">
+              QuestUp personalized learning platform
+            </p>
           </div>
         </div>
       )}
 
-      <main className="container mx-auto px-4 py-8 max-w-4xl">
+      <main className="container mx-auto px-4 py-8 max-w-4xl relative z-10">
         {isLoading && (
-          <div className="fixed inset-0 bg-white/90 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 text-center animate-fadeIn">
-            <div className="relative w-28 h-28 mb-8">
-              <div className="absolute inset-0 questup-logo-bg rounded-[2rem] animate-pulse"></div>
+          <div className="fixed inset-0 bg-white/90 z-50 flex flex-col items-center justify-center animate-fadeIn">
+            <div className="w-20 h-20 relative mb-6">
+              <div className="absolute inset-0 border-4 border-indigo-100 rounded-full"></div>
+              <div className="absolute inset-0 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
               <div className="absolute inset-0 flex items-center justify-center">
-                <i className="fas fa-bolt text-yellow-300 text-5xl animate-bounce"></i>
+                <i className="fas fa-brain text-indigo-600 animate-pulse text-2xl"></i>
               </div>
             </div>
-            <h2 className="text-3xl font-black text-slate-800 mb-2 tracking-tighter">QuestUp AI</h2>
-            <p className="text-slate-500 max-w-sm font-medium">
-              กำลังวิเคราะห์ข้อมูลด้วย Gemini Flash... <br/>
-              แม่นยำและรวดเร็วกว่าเดิม!
-            </p>
+            <h3 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic">QuestUp AI is analyzing...</h3>
+            <p className="text-slate-400 text-sm mt-2">กำลังดึงข้อมูลจากชีทเรียนของคุณ</p>
           </div>
         )}
 
         {view === 'login' && <Login onLogin={handleLogin} />}
         {view === 'setup' && user && <SetupForm onStart={handleStartExam} />}
-        
         {view === 'quiz' && session && (
-          <Quiz 
-            questions={session.questions} 
-            language={session.language}
-            onComplete={handleCompleteQuiz} 
-          />
+          <Quiz questions={session.questions} language={session.language} onComplete={handleCompleteQuiz} />
         )}
-        
         {view === 'analysis' && session && (
           <Analysis 
             questions={session.questions} 
             answers={userAnswers} 
-            onRetry={resetToSetup}
-            onFocusWeakness={handleRetryWithWeaknesses}
+            onRetry={() => setView('setup')}
+            onFocusWeakness={(w) => handleStartExam(session.files, session.grade, session.language, session.questionCount, w)}
           />
         )}
       </main>
