@@ -15,13 +15,25 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [userAnswers, setUserAnswers] = useState<(number | null)[]>([]);
   
-  // ปรับให้เป็น true ไว้ก่อน เพื่อลดการวนลูปหน้าแรก
   const [hasKey, setHasKey] = useState<boolean>(true);
-  const [isBillingError, setIsBillingError] = useState<boolean>(false);
-  const [apiRawError, setApiRawError] = useState<string>("");
+  const [isAuthError, setIsAuthError] = useState<boolean>(false);
+  const [errorDetail, setErrorDetail] = useState<string>("");
 
   useEffect(() => {
-    // โหลดข้อมูลผู้ใช้
+    // 1. ตรวจสอบสถานะ Key ทันที (Background)
+    const checkKey = async () => {
+      try {
+        const selected = await (window as any).aistudio?.hasSelectedApiKey();
+        if (!selected) {
+          setHasKey(false);
+        }
+      } catch (e) {
+        console.error("Key validation error", e);
+      }
+    };
+    checkKey();
+
+    // 2. โหลด User Session
     try {
       const savedUser = sessionStorage.getItem('questup_user');
       if (savedUser && savedUser !== 'undefined') {
@@ -37,17 +49,14 @@ export default function App() {
     try {
       if ((window as any).aistudio?.openSelectKey) {
         await (window as any).aistudio.openSelectKey();
-        
-        // ตามกฎ Race Condition: เมื่อกดเลือกแล้ว ให้ถือว่าสำเร็จและสลัดลูปทิ้งทันที
+        // รีเซ็ตสถานะทั้งหมดเพื่อให้แอปพร้อมเริ่มงานใหม่
         setHasKey(true);
-        setIsBillingError(false);
-        setApiRawError("");
-        
-        // แจ้งเตือนผู้ใช้เล็กน้อย
-        console.log("Key selection triggered. App state reset.");
+        setIsAuthError(false);
+        setErrorDetail("");
+        console.log("New API Key selected successfully.");
       }
     } catch (e) {
-      console.error("Select Key Error", e);
+      console.error("Select Key UI Failed", e);
     }
   };
 
@@ -66,8 +75,8 @@ export default function App() {
   const handleStartExam = async (files: ReferenceFile[], grade: Grade, lang: Language, count: number, weakTopics?: string[]) => {
     if (!user) return;
     setIsLoading(true);
-    setIsBillingError(false);
-    setApiRawError("");
+    setIsAuthError(false);
+    setErrorDetail("");
 
     try {
       const questions = await generateExamFromFile(files, grade, lang, count, weakTopics);
@@ -84,16 +93,22 @@ export default function App() {
       setUserAnswers(new Array(questions.length).fill(null));
       setView('quiz');
     } catch (err: any) {
-      const msg = err.message || "Unknown Error";
-      console.error("QuestUp API Error:", msg);
-      setApiRawError(msg);
+      const msg = err.message || "";
+      console.error("Critical API Error:", msg);
+      setErrorDetail(msg);
 
-      // ถ้าเจอ Error เกี่ยวกับโปรเจกต์หรือสิทธิ์การใช้งาน
-      if (msg.includes("not found") || msg.includes("billing") || msg.includes("403") || msg.includes("401")) {
-        setIsBillingError(true);
-        setHasKey(false);
+      // ตรวจสอบตามคำแนะนำ: หากเจอ "Requested entity was not found" หรือปัญหาเกี่ยวกับ Key
+      if (
+        msg.includes("not found") || 
+        msg.includes("API key") || 
+        msg.includes("403") || 
+        msg.includes("401") || 
+        msg.includes("billing")
+      ) {
+        setIsAuthError(true);
+        setHasKey(false); // บังคับให้แสดงหน้าจอเลือก Key ใหม่
       } else {
-        alert("เกิดข้อผิดพลาด: " + msg);
+        alert("เกิดข้อผิดพลาดในการสร้างข้อสอบ: " + msg);
       }
     } finally {
       setIsLoading(false);
@@ -117,49 +132,73 @@ export default function App() {
         onManageKey={handleConnectKey}
       />
       
-      {/* หน้าจอแจ้งเตือนปัญหา (Overlay) - ปรับปรุงให้ไม่วนลูปและมีข้อมูล Error จริง */}
-      {isBillingError && (
-        <div className="fixed inset-0 z-[100] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white rounded-[3rem] p-10 max-w-lg w-full text-center shadow-2xl border-t-[12px] border-indigo-600 animate-slideUp">
-            <div className="w-20 h-20 bg-rose-50 rounded-3xl flex items-center justify-center text-rose-600 mx-auto mb-6">
-              <i className="fas fa-exclamation-triangle text-3xl"></i>
+      {/* การ์ดแจ้งเตือนปัญหาการเชื่อมต่อ - บังคับให้เห็นถ้าไม่มี Key หรือ Key ผิดพลาด */}
+      {(!hasKey || isAuthError) && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/95 backdrop-blur-xl flex items-center justify-center p-4">
+          <div className="bg-white rounded-[3.5rem] p-12 max-w-xl w-full text-center shadow-2xl border-b-[16px] border-indigo-600 animate-slideUp">
+            <div className="w-24 h-24 bg-rose-50 rounded-[2.5rem] flex items-center justify-center text-rose-600 mx-auto mb-8 shadow-inner relative">
+               <i className="fas fa-plug text-4xl"></i>
+               <div className="absolute -top-2 -right-2 w-8 h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center border-4 border-white">
+                  <i className="fas fa-sync text-[10px] animate-spin"></i>
+               </div>
             </div>
             
-            <h2 className="text-3xl font-black text-slate-800 mb-2 tracking-tighter">
-              การเชื่อมต่อถูกปฏิเสธ
+            <h2 className="text-4xl font-black text-slate-800 mb-6 tracking-tighter uppercase italic">
+              {isAuthError ? "API Key มีปัญหา" : "เชื่อมต่อ AI ติวสอบ"}
             </h2>
-            <p className="text-slate-500 text-sm mb-6">Google AI แจ้งว่าโปรเจกต์ของคุณยังไม่พร้อมใช้งาน</p>
             
-            <div className="bg-slate-50 rounded-2xl p-5 text-left mb-6 border border-slate-100">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">ข้อความจากระบบ (Raw Error):</p>
-              <code className="text-[10px] text-rose-500 block break-all font-mono bg-rose-50 p-2 rounded-lg border border-rose-100">
-                {apiRawError || "Project linkage failed or billing not active yet."}
-              </code>
+            <div className="bg-slate-50 rounded-[2rem] p-8 text-left mb-10 border border-slate-100">
+              <p className="text-base text-slate-700 font-bold mb-6 flex items-center gap-3">
+                <i className="fas fa-tools text-indigo-500"></i> วิธีแก้ไขปัญหา:
+              </p>
+              <ul className="text-sm text-slate-500 space-y-5 font-medium">
+                <li className="flex gap-4">
+                  <span className="flex-shrink-0 w-6 h-6 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[10px] font-black">1</span>
+                  <span>กดปุ่ม <b>"อัปเดตการเชื่อมต่อ"</b> แล้วเลือก Key ที่ผูกบัตรเครดิตแล้วเท่านั้น</span>
+                </li>
+                <li className="flex gap-4">
+                  <span className="flex-shrink-0 w-6 h-6 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[10px] font-black">2</span>
+                  <span>หากยังพังอยู่ ให้เช็คที่ <b>Google AI Studio</b> ว่าโปรเจกต์ไม่ได้อยู่ในโหมด Free Tier (ต้องเป็น Paid)</span>
+                </li>
+              </ul>
+              {errorDetail && (
+                <div className="mt-6 p-4 bg-rose-50 rounded-2xl border border-rose-100">
+                  <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-1">Raw Error Message:</p>
+                  <p className="text-[11px] text-rose-600 font-mono break-all">{errorDetail}</p>
+                </div>
+              )}
             </div>
 
-            <div className="space-y-3">
-              <button 
-                onClick={handleConnectKey}
-                className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3"
-              >
-                เลือก API Key ใหม่ <i className="fas fa-key"></i>
-              </button>
-              <button 
-                onClick={() => { setIsBillingError(false); setHasKey(true); }}
-                className="w-full py-4 text-slate-400 hover:text-slate-600 font-bold text-sm"
-              >
-                ลองกดใหม่อีกครั้ง (ถ้าผูกบัตรแล้ว)
-              </button>
-            </div>
+            <button 
+              onClick={handleConnectKey}
+              className="w-full py-7 bg-indigo-600 hover:bg-indigo-700 text-white rounded-[2rem] font-black text-2xl shadow-2xl shadow-indigo-200 transition-all active:scale-95 flex items-center justify-center gap-5 group"
+            >
+              อัปเดตการเชื่อมต่อ <i className="fas fa-bolt group-hover:scale-125 transition-transform"></i>
+            </button>
+            
+            <a 
+              href="https://ai.google.dev/gemini-api/docs/billing" 
+              target="_blank" 
+              className="inline-block mt-8 text-xs font-black text-slate-400 hover:text-indigo-500 transition-colors uppercase tracking-widest border-b-2 border-transparent hover:border-indigo-100"
+            >
+              ดูวิธีตั้งค่า Billing ที่ถูกต้อง <i className="fas fa-external-link-alt ml-1"></i>
+            </a>
           </div>
         </div>
       )}
 
       <main className="container mx-auto px-4 py-8 max-w-4xl relative z-10">
         {isLoading && (
-          <div className="fixed inset-0 bg-white/95 z-50 flex flex-col items-center justify-center">
-            <div className="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <h3 className="text-xl font-black text-slate-800 tracking-tighter uppercase italic">QuestUp AI is thinking...</h3>
+          <div className="fixed inset-0 bg-white/95 z-50 flex flex-col items-center justify-center animate-fadeIn">
+            <div className="w-24 h-24 relative mb-8">
+              <div className="absolute inset-0 border-8 border-indigo-100 rounded-full"></div>
+              <div className="absolute inset-0 border-8 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <i className="fas fa-brain text-indigo-600 animate-pulse text-3xl"></i>
+              </div>
+            </div>
+            <h3 className="text-3xl font-black text-slate-800 tracking-tighter uppercase italic">QuestUp is Generating...</h3>
+            <p className="text-slate-400 text-sm mt-3 font-bold">AI กำลังวิเคราะห์เนื้อหาและเก็งข้อสอบ</p>
           </div>
         )}
 
@@ -178,16 +217,14 @@ export default function App() {
         )}
       </main>
 
-      {/* Floating Status Bar */}
-      <div className="fixed bottom-6 right-6 z-[60] flex gap-2">
-         <button 
-          onClick={handleConnectKey}
-          className="bg-white/90 backdrop-blur-md border border-slate-200 px-4 py-2 rounded-2xl shadow-xl text-[10px] font-black text-slate-500 hover:bg-white transition-all flex items-center gap-2"
-        >
-          <div className={`w-2 h-2 rounded-full ${isBillingError ? 'bg-rose-500' : 'bg-emerald-500'}`}></div>
-          RE-CONNECT AI
-        </button>
-      </div>
+      {/* ปุ่มลอยจัดการ Key - สำหรับเปลี่ยน Key ได้ตลอดเวลา */}
+      <button 
+        onClick={handleConnectKey}
+        className="fixed bottom-8 right-8 z-[60] bg-white/90 backdrop-blur-xl border-2 border-slate-200 px-6 py-3 rounded-[2rem] shadow-2xl text-[10px] font-black text-slate-600 hover:bg-white hover:border-indigo-500 hover:text-indigo-600 transition-all active:scale-95 flex items-center gap-3 group"
+      >
+        <div className={`w-3 h-3 rounded-full ${isAuthError ? 'bg-rose-500 animate-ping' : 'bg-emerald-500'}`}></div>
+        UPDATE API SETTINGS <i className="fas fa-cog group-hover:rotate-180 transition-transform duration-700"></i>
+      </button>
     </div>
   );
 }
