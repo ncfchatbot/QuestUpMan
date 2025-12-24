@@ -2,10 +2,9 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { ReferenceFile, Grade, Language, Question, AnalysisResult } from "../types.ts";
 
-const getApiKey = () => {
-  return process.env.API_KEY || (window as any).process?.env?.API_KEY || "";
-};
-
+/**
+ * Helper to retry API calls on rate limits or service unavailability
+ */
 async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 2000): Promise<T> {
   try {
     return await fn();
@@ -19,6 +18,9 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 2000): Pr
   }
 }
 
+/**
+ * Generates exam questions based on uploaded files and educational context using Gemini Pro
+ */
 export async function generateExamFromFile(
   files: ReferenceFile[],
   grade: Grade,
@@ -26,12 +28,11 @@ export async function generateExamFromFile(
   count: number,
   weakTopics?: string[]
 ): Promise<Question[]> {
-  const apiKey = getApiKey();
+  // Obtain API key strictly from process.env.API_KEY
+  const apiKey = process.env.API_KEY;
   if (!apiKey) {
-    throw new Error("Missing API Key. Please ensure process.env.API_KEY is configured.");
+    throw new Error("API_KEY_MISSING");
   }
-
-  const ai = new GoogleGenAI({ apiKey });
   
   const fileParts = files.map(f => ({
     inlineData: {
@@ -41,26 +42,30 @@ export async function generateExamFromFile(
   }));
 
   const targetingPrompt = weakTopics && weakTopics.length > 0 
-    ? `IMPORTANT: This is a RECOVERY EXAM for a specific student profile. Specifically focus on these weak topics: ${weakTopics.join(', ')}.`
-    : "Generate a personalized exam based on the provided study materials for a single student.";
+    ? `เน้นประเด็นที่นักเรียนยังไม่เข้าใจ (Weak topics): ${weakTopics.join(', ')}`
+    : "สร้างข้อสอบเก็งแนวสำหรับนักเรียนรายบุคคล";
 
-  const prompt = `You are a Thai curriculum expert and tutor for Grade ${grade}.
-  Task: ${targetingPrompt}
-  Exam Language: ${language}
-  Question Count: ${count}
-  Context: The attached files are study materials. 
-  CRITICAL INSTRUCTION:
-  - Generate exactly ${count} multiple choice questions.
-  - The "explanation" field MUST be written in Thai. 
-  - Return a JSON array of objects.`;
+  const prompt = `คุณคือผู้เชี่ยวชาญด้านหลักสูตรการศึกษาไทย (สพฐ.) สำหรับชั้น ${grade}
+  ภารกิจ: ${targetingPrompt}
+  ภาษาของข้อสอบ: ${language}
+  จำนวนข้อ: ${count}
+  
+  คำแนะนำพิเศษ:
+  - วิเคราะห์ไฟล์แนบอย่างละเอียด
+  - ออกข้อสอบแบบเลือกตอบ 4 ตัวเลือก
+  - เฉลย (Explanation) ต้องเป็นภาษาไทยที่เข้าใจง่ายสำหรับเด็กชั้น ${grade}
+  - กลับค่าเป็น JSON Array เท่านั้น`;
 
   return withRetry(async () => {
+    // Create new GoogleGenAI instance right before the API call for the most up-to-date context
+    const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3-pro-preview",
       contents: {
         parts: [...fileParts, { text: prompt }]
       },
       config: {
+        thinkingConfig: { thinkingBudget: 10000 },
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
@@ -79,29 +84,40 @@ export async function generateExamFromFile(
       }
     });
 
-    const data = JSON.parse(response.text || "[]");
-    return data.map((q: any, i: number) => ({ ...q, id: `q-${Date.now()}-${i}-${Math.random()}` }));
+    const jsonStr = (response.text || "").trim();
+    const data = JSON.parse(jsonStr || "[]");
+    return data.map((q: any, i: number) => ({ ...q, id: `q-${Date.now()}-${i}` }));
   });
 }
 
+/**
+ * Analyzes exam results to identify strengths, weaknesses, and provide learning advice
+ */
 export async function analyzeExamResults(
   questions: Question[], 
   userAnswers: (number | null)[]
 ): Promise<AnalysisResult> {
-  const apiKey = getApiKey();
-  if (!apiKey) throw new Error("Missing API Key");
+  // Obtain API key strictly from process.env.API_KEY
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) throw new Error("API_KEY_MISSING");
 
-  const ai = new GoogleGenAI({ apiKey });
   const history = questions.map((q, i) => ({
     topic: q.topic,
     correct: q.correctIndex === userAnswers[i]
   }));
 
-  const prompt = `Analyze these exam results: ${JSON.stringify(history)}. Everything in Thai. Return as JSON.`;
+  const prompt = `วิเคราะห์ผลสอบชุดนี้: ${JSON.stringify(history)}
+  1. สรุปภาพรวมใน 1-2 ประโยค (Thai)
+  2. บอกจุดแข็ง (Strengths) เป็นหัวข้อ
+  3. บอกจุดที่ควรปรับปรุง (Weaknesses) เป็นหัวข้อ
+  4. ให้คำแนะนำในการอ่านหนังสือ (Advice)
+  กลับค่าเป็น JSON`;
 
   return withRetry(async () => {
+    // Create new GoogleGenAI instance right before the API call
+    const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3-pro-preview",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -117,6 +133,8 @@ export async function analyzeExamResults(
         }
       }
     });
-    return JSON.parse(response.text || "{}");
+    
+    const jsonStr = (response.text || "").trim();
+    return JSON.parse(jsonStr || "{}");
   });
 }

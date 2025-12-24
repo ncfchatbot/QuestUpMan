@@ -14,8 +14,11 @@ export default function App() {
   const [session, setSession] = useState<ExamSession | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [userAnswers, setUserAnswers] = useState<(number | null)[]>([]);
+  const [hasKey, setHasKey] = useState<boolean>(true);
 
   useEffect(() => {
+    checkApiKey();
+    
     try {
       const savedUser = sessionStorage.getItem('questup_user');
       if (savedUser && savedUser !== 'undefined') {
@@ -27,6 +30,26 @@ export default function App() {
       sessionStorage.removeItem('questup_user');
     }
   }, []);
+
+  // Check for API key availability via process.env or AI Studio dialog
+  const checkApiKey = async () => {
+    const envKey = process.env.API_KEY;
+    if (!envKey) {
+      // Accessing aistudio via any cast to bypass global type collision errors
+      const selected = await (window as any).aistudio?.hasSelectedApiKey();
+      setHasKey(!!selected);
+    } else {
+      setHasKey(true);
+    }
+  };
+
+  // Open the AI Studio key selection dialog
+  const handleOpenKeySelector = async () => {
+    // Accessing aistudio via any cast to bypass global type collision errors
+    await (window as any).aistudio?.openSelectKey();
+    // Per instructions: assume key selection was successful to mitigate race condition
+    setHasKey(true);
+  };
 
   const handleLogin = (newUser: User) => {
     setUser(newUser);
@@ -45,9 +68,6 @@ export default function App() {
     setIsLoading(true);
     try {
       const questions = await generateExamFromFile(files, grade, lang, count, weakTopics);
-      if (questions.length === 0) {
-         throw new Error("Could not generate questions");
-      }
       setSession({
         userId: user.id,
         files,
@@ -62,10 +82,11 @@ export default function App() {
       setView('quiz');
     } catch (err: any) {
       console.error(err);
-      const msg = err.message?.includes("API Key") 
-        ? "ระบบขัดข้อง: ไม่พบ API Key สำหรับประมวลผล กรุณาตรวจสอบการตั้งค่า Environment Variable"
-        : "AI ไม่สามารถสร้างข้อสอบได้ในขณะนี้ กรุณาลองใหม่อีกครั้งใน 1 นาที";
-      alert(msg);
+      if (err.message === "API_KEY_MISSING") {
+        setHasKey(false);
+      } else {
+        alert("ขออภัย ระบบ AI หนาแน่นชั่วคราว กรุณาลองใหม่อีกครั้งใน 10 วินาที");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -94,6 +115,33 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 font-['Kanit']">
       <Header user={user} onHome={resetToSetup} onLogout={handleLogout} />
       
+      {!hasKey && (
+        <div className="fixed inset-0 z-[60] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2.5rem] p-8 max-w-md w-full text-center shadow-2xl animate-slideUp">
+            <div className="w-20 h-20 questup-logo-bg rounded-2xl flex items-center justify-center text-white mx-auto mb-6 shadow-xl">
+              <i className="fas fa-key text-3xl"></i>
+            </div>
+            <h2 className="text-2xl font-black text-slate-800 mb-2">เชื่อมต่อขุมพลัง AI</h2>
+            <p className="text-slate-500 mb-6 font-medium">
+              QuestUp ต้องใช้ API Key เพื่อประมวลผลข้อสอบอัจฉริยะ กรุณาเชื่อมต่อบัญชีของคุณ
+            </p>
+            <button 
+              onClick={handleOpenKeySelector}
+              className="w-full py-4 questup-logo-bg text-white rounded-2xl font-black text-lg shadow-lg hover:brightness-110 transition-all active:scale-95 mb-4"
+            >
+              ตั้งค่า API Key <i className="fas fa-plug ml-2"></i>
+            </button>
+            <a 
+              href="https://ai.google.dev/gemini-api/docs/billing" 
+              target="_blank" 
+              className="text-xs font-bold text-blue-600 hover:underline"
+            >
+              ทำไมฉันต้องตั้งค่า API Key? (Google Billing Docs)
+            </a>
+          </div>
+        </div>
+      )}
+
       <main className="container mx-auto px-4 py-8 max-w-4xl">
         {isLoading && (
           <div className="fixed inset-0 bg-white/90 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 text-center animate-fadeIn">
@@ -102,13 +150,10 @@ export default function App() {
               <div className="absolute inset-0 flex items-center justify-center">
                 <i className="fas fa-gamepad text-orange-400 text-5xl animate-bounce"></i>
               </div>
-              <div className="absolute -top-4 -right-4 w-10 h-10 questup-logo-bg rounded-full flex items-center justify-center text-white border-2 border-white animate-spin-slow">
-                 <i className="fas fa-star text-xs"></i>
-              </div>
             </div>
-            <h2 className="text-3xl font-black text-slate-800 mb-2 tracking-tighter">QuestUp AI</h2>
+            <h2 className="text-3xl font-black text-slate-800 mb-2 tracking-tighter">QuestUp AI (Pro)</h2>
             <p className="text-slate-500 max-w-sm font-medium">
-              กำลังวิเคราะห์ข้อมูลและเก็งข้อสอบให้ตรงจุดที่สุด...
+              กำลังใช้สมองกลรุ่น Pro วิเคราะห์เนื้อหาอย่างละเอียด...
             </p>
           </div>
         )}
