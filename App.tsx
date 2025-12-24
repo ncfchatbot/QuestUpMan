@@ -19,40 +19,43 @@ export default function App() {
 
   useEffect(() => {
     const initApp = async () => {
-      // ตรวจสอบ API Key
-      const key = process.env.API_KEY;
-      if (!key || key === "" || key === "undefined") {
-        // ถ้าไม่มีใน env ให้ลองเช็ค AI Studio Bridge
-        try {
-          const selected = await (window as any).aistudio?.hasSelectedApiKey();
-          setHasKey(!!selected);
-        } catch (e) {
-          setHasKey(false);
+      try {
+        // ตรวจสอบ API Key (แบบทนทาน)
+        const key = typeof process !== 'undefined' ? process.env.API_KEY : "";
+        if (!key || key === "" || key === "undefined") {
+          try {
+            const selected = await (window as any).aistudio?.hasSelectedApiKey();
+            setHasKey(!!selected);
+          } catch (e) {
+            setHasKey(false);
+          }
+        } else {
+          setHasKey(true);
         }
-      } else {
-        setHasKey(true);
-      }
 
-      // โหลดข้อมูลผู้ใช้
-      const saved = sessionStorage.getItem('questup_user');
-      if (saved && saved !== 'undefined') {
-        try {
+        // โหลดข้อมูลผู้ใช้
+        const saved = sessionStorage.getItem('questup_user');
+        if (saved && saved !== 'undefined') {
           setUser(JSON.parse(saved));
           setView('setup');
-        } catch(e) {}
+        }
+      } catch (err) {
+        console.error("Init crash:", err);
       }
     };
     initApp();
   }, []);
 
   const handleConnectKey = async () => {
-    if ((window as any).aistudio?.openSelectKey) {
-      await (window as any).aistudio.openSelectKey();
-      setHasKey(true);
-      setError(null);
-    } else {
-      // ถ้าไม่อยู่ใน AI Studio ให้บอกวิธีเซตใน Netlify
-      alert("กรุณาตั้งค่า API_KEY ใน Netlify Environment Variables");
+    try {
+      if ((window as any).aistudio?.openSelectKey) {
+        await (window as any).aistudio.openSelectKey();
+        setHasKey(true);
+      } else {
+        alert("กรุณาตั้งค่า API_KEY ในระบบหลังบ้านของ Netlify (Site Settings > Env Variables)");
+      }
+    } catch (e) {
+      setHasKey(false);
     }
   };
 
@@ -74,11 +77,10 @@ export default function App() {
       setUserAnswers(new Array(questions.length).fill(null));
       setView('quiz');
     } catch (err: any) {
-      console.error(err);
-      if (err.message?.includes("AUTH_REQUIRED") || err.message?.includes("API key")) {
+      if (err.message?.includes("AUTH_REQUIRED")) {
         setHasKey(false);
       } else {
-        setError(err.message || "เกิดข้อผิดพลาดในการติดต่อ AI");
+        setError(err.message || "เกิดข้อผิดพลาดในการสร้างข้อสอบ");
       }
     } finally {
       setIsLoading(false);
@@ -94,41 +96,35 @@ export default function App() {
         onManageKey={handleConnectKey} 
       />
 
-      {/* หน้ากากป้องกัน API Key หาย (จะไม่ขาวโพลนแล้ว) */}
       {!hasKey && (
-        <div className="fixed inset-0 z-[100] bg-slate-900/95 backdrop-blur-xl flex items-center justify-center p-4">
-          <div className="bg-white rounded-[3rem] p-10 max-w-lg w-full shadow-2xl border-b-[12px] border-indigo-600 animate-slideUp text-center">
-            <div className="w-20 h-20 bg-rose-50 rounded-3xl flex items-center justify-center text-rose-600 mx-auto mb-6">
-              <i className="fas fa-key text-3xl"></i>
-            </div>
-            <h2 className="text-2xl font-black text-slate-800 mb-4">เชื่อมต่อ AI ไม่สำเร็จ</h2>
-            <p className="text-slate-500 mb-8 text-sm">เราไม่พบ API Key ในระบบของคุณ กรุณาตรวจสอบการตั้งค่าใน Netlify หรือเลือก Key จาก AI Studio</p>
-            
-            <div className="grid grid-cols-1 gap-3">
-              <button onClick={handleConnectKey} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-lg hover:bg-indigo-700 transition-all">
-                เชื่อมต่อผ่าน AI Studio
+        <div className="fixed inset-0 z-[100] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white rounded-[3rem] p-10 max-w-md w-full shadow-2xl text-center border-t-[12px] border-indigo-600">
+            <h2 className="text-2xl font-black text-slate-800 mb-4 tracking-tighter uppercase italic">AI ยังไม่ได้รับอนุญาต</h2>
+            <p className="text-slate-500 mb-8 text-sm leading-relaxed">กรุณาตั้งค่า <b>API_KEY</b> ใน Netlify หรือใช้ปุ่มด้านล่างเพื่อเลือก Key จาก AI Studio</p>
+            <div className="space-y-3">
+              <button onClick={handleConnectKey} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-lg hover:scale-[1.02] transition-transform">
+                เลือก API Key (AI Studio)
               </button>
-              <button onClick={() => window.location.reload()} className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black transition-all">
-                ฉันตั้งค่าใน Netlify แล้ว (รีโหลด)
+              <button onClick={() => window.location.reload()} className="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200">
+                ตั้งค่าใน Netlify แล้ว (รีโหลด)
               </button>
             </div>
-            <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="inline-block mt-6 text-xs text-indigo-500 font-bold underline">อ่านวิธีตั้งค่า API Key</a>
           </div>
         </div>
       )}
 
       <main className="container mx-auto px-4 py-8 max-w-4xl">
         {isLoading && (
-          <div className="fixed inset-0 bg-white/95 z-50 flex flex-col items-center justify-center animate-fadeIn">
-            <div className="w-16 h-16 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin mb-6"></div>
-            <h3 className="text-xl font-black text-slate-800 italic">AI กำลังวิเคราะห์ชีทเรียน...</h3>
+          <div className="fixed inset-0 bg-white/95 z-50 flex flex-col items-center justify-center">
+            <div className="w-16 h-16 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin mb-4"></div>
+            <p className="font-black text-slate-800 animate-pulse">กำลังเก็งข้อสอบด้วย AI...</p>
           </div>
         )}
 
         {error && (
-          <div className="mb-6 p-4 bg-rose-50 border border-rose-200 text-rose-600 rounded-2xl flex items-center justify-between animate-slideUp">
-            <span className="font-bold text-sm">⚠️ {error}</span>
-            <button onClick={() => setError(null)} className="text-rose-400"><i className="fas fa-times"></i></button>
+          <div className="mb-6 p-4 bg-rose-50 border-2 border-rose-100 text-rose-600 rounded-2xl flex items-center justify-between">
+            <span className="font-black text-xs uppercase tracking-widest"><i className="fas fa-exclamation-circle mr-2"></i>{error}</span>
+            <button onClick={() => setError(null)}><i className="fas fa-times"></i></button>
           </div>
         )}
 

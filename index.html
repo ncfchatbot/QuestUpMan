@@ -9,65 +9,61 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
   <script>
-    // สร้างตัวแปรหลอกไว้ก่อนเพื่อไม่ให้ App พังตอนรันใน Browser
-    window.process = { 
-      env: { 
-        API_KEY: "" 
-      } 
-    };
+    // 🛡️ ป้องกันหน้าจอขาวจาก Error "process is not defined"
+    window.process = { env: { API_KEY: "" } };
+    
+    // 🕒 ระบบตรวจจับหน้าจอขาว (ถ้า 4 วินาทีแล้วไม่มีอะไรขึ้น ให้แจ้งเตือน)
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        const root = document.getElementById('root');
+        if (root && root.innerHTML === "") {
+          document.getElementById('critical-error').style.display = 'flex';
+          console.error("App failed to render within 4 seconds.");
+        }
+      }, 4000);
+    });
   </script>
   <style>
     body { font-family: 'Kanit', sans-serif; margin: 0; padding: 0; }
-    #error-overlay { 
-      display: none; 
-      position: fixed; 
-      inset: 0; 
-      background: #0f172a; 
-      z-index: 9999; 
-      color: white; 
-      padding: 2rem; 
-      display: none; 
-      flex-direction: column; 
-      align-items: center; 
-      justify-content: center; 
-      text-align: center;
+    .error-screen {
+      display: none; position: fixed; inset: 0; background: #0f172a;
+      color: white; z-index: 9999; flex-direction: column;
+      align-items: center; justify-content: center; text-align: center; padding: 20px;
     }
+    .questup-logo-bg { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); }
   </style>
 <script type="importmap">
 {
   "imports": {
-    "react/": "https://esm.sh/react@^19.2.3/",
     "react": "https://esm.sh/react@^19.2.3",
-    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
-    "vite": "https://esm.sh/vite@^7.3.0"
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
+    "vite": "https://esm.sh/vite@^7.3.0",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
   }
 }
 </script>
 </head>
 <body class="bg-slate-50 text-slate-900">
-  <div id="error-overlay">
-    <div style="background: #1e293b; padding: 3rem; border-radius: 2rem; border: 2px solid #334155; max-width: 500px;">
-      <i class="fas fa-exclamation-triangle" style="font-size: 4rem; color: #f43f5e; margin-bottom: 1.5rem;"></i>
-      <h1 style="font-size: 1.5rem; font-weight: 900; margin-bottom: 1rem;">QuestUp พบข้อผิดพลาด</h1>
-      <p id="error-desc" style="color: #94a3b8; margin-bottom: 2rem; font-size: 0.9rem;"></p>
-      <button onclick="window.location.reload()" style="background: #4f46e5; color: white; padding: 1rem 2rem; border: none; border-radius: 1rem; font-weight: 900; cursor: pointer; width: 100%;">ลองใหม่อีกครั้ง</button>
+  <!-- หน้าจอแจ้งเตือนเมื่อแอป "ตาย" หรือโหลดไม่ขึ้น -->
+  <div id="critical-error" class="error-screen">
+    <div class="bg-slate-800 p-8 rounded-[2.5rem] border-2 border-slate-700 shadow-2xl max-w-md">
+      <i class="fas fa-ghost text-5xl text-rose-500 mb-6 animate-bounce"></i>
+      <h1 class="text-2xl font-black mb-4 italic italic uppercase tracking-tighter">หน้าจอขาวโพลน?</h1>
+      <p class="text-slate-400 text-sm mb-6 leading-relaxed">
+        Browser ไม่สามารถรันไฟล์ TypeScript (.tsx) ได้โดยตรง <br>
+        <b>วิธีแก้:</b> คุณต้องตั้งค่า Build Command ใน Netlify เป็น <code>npm run build</code> และ Publish directory เป็น <code>dist</code>
+      </p>
+      <button onclick="window.location.reload()" class="w-full py-4 bg-indigo-600 rounded-2xl font-black hover:bg-indigo-700 transition-all">
+        กดเพื่อลองโหลดใหม่อีกครั้ง
+      </button>
     </div>
   </div>
 
   <div id="root"></div>
 
-  <script>
-    // ดักจับ Error ระดับ Global
-    window.addEventListener('error', function(event) {
-      const overlay = document.getElementById('error-overlay');
-      const desc = document.getElementById('error-desc');
-      overlay.style.display = 'flex';
-      desc.innerText = event.message || 'เกิดข้อผิดพลาดในการโหลดโมดูล (อาจเกิดจาก API Key หรือการ Build)';
-    });
-  </script>
-  <!-- เปลี่ยนทางเข้าเป็นแบบสัมพัทธ์เพื่อให้ Vite หาเจอแน่นอน -->
-  <script type="module" src="index.tsx"></script>
+  <!-- นำเข้าไฟล์หลักแบบ Standard Vite -->
+  <script type="module" src="/index.tsx"></script>
 </body>
 </html>
