@@ -9,19 +9,27 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
   <script>
-    window.process = window.process || { env: {} };
+    // ป้องกันแอปค้างเมื่อเรียกใช้ process.env ใน Browser
+    window.process = {
+      env: {
+        NODE_ENV: 'production',
+        API_KEY: '' // จะถูกแทนที่ด้วยค่าจริงใน runtime ถ้ามี
+      }
+    };
   </script>
   <style>
     body {
       font-family: 'Kanit', sans-serif;
+      margin: 0;
+      padding: 0;
     }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-    @keyframes slideUp { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     .animate-fadeIn { animation: fadeIn 0.4s ease-out; }
-    .animate-slideUp { animation: slideUp 0.4s ease-out; }
+    .animate-slideUp { animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
     
     .questup-logo-bg {
-      background: linear-gradient(135deg, #a855f7 0%, #3b82f6 100%);
+      background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
     }
   </style>
 <script type="importmap">
