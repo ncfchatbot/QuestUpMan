@@ -2,33 +2,19 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { ReferenceFile, Grade, Language, Question, AnalysisResult } from "../types.ts";
 
-// ฟังก์ชันดึง Key ที่อัปเดตที่สุด
 const getApiKey = () => {
   return process.env.API_KEY || (window as any).process?.env?.API_KEY;
 };
 
-async function withRetry<T>(fn: () => Promise<T>, retries = 1, delay = 1000): Promise<T> {
+async function callGemini<T>(fn: (ai: GoogleGenAI) => Promise<T>): Promise<T> {
+  const apiKey = getApiKey();
+  if (!apiKey) throw new Error("API_KEY_MISSING: ไม่พบ API Key กรุณากดปุ่มเชื่อมต่อ");
+  
+  const ai = new GoogleGenAI({ apiKey });
   try {
-    return await fn();
+    return await fn(ai);
   } catch (error: any) {
-    const errorMsg = error?.message?.toLowerCase() || "";
-    
-    // ถ้าเป็น Error เกี่ยวกับ Billing หรือ Key ให้รีบส่ง Error ออกไปเพื่อให้ UI จัดการ
-    if (
-      errorMsg.includes("billing") || 
-      errorMsg.includes("403") || 
-      errorMsg.includes("404") || 
-      errorMsg.includes("not found") || 
-      errorMsg.includes("api_key") ||
-      errorMsg.includes("project")
-    ) {
-      throw error;
-    }
-    
-    if (retries > 0 && (error.status === 429 || error.status === 503)) {
-      await new Promise(resolve => setTimeout(resolve, delay));
-      return withRetry(fn, retries - 1, delay * 2);
-    }
+    // ส่ง Error กลับไปให้ App.tsx จัดการ UI
     throw error;
   }
 }
@@ -40,9 +26,6 @@ export async function generateExamFromFile(
   count: number,
   weakTopics?: string[]
 ): Promise<Question[]> {
-  const apiKey = getApiKey();
-  if (!apiKey) throw new Error("API_KEY_INVALID: ไม่พบ API Key");
-  
   const fileParts = files.map(f => ({
     inlineData: {
       data: f.data.split(',')[1] || f.data,
@@ -58,16 +41,9 @@ export async function generateExamFromFile(
   Task: ${targetingPrompt}
   Output Language: ${language}
   Total Questions: ${count}
-  
-  Requirements:
-  - Analyze the attached materials deeply.
-  - Create 4 multiple choice options.
-  - Explanation MUST be in THAI.
-  - Return ONLY a JSON Array.`;
+  Requirements: Analyze files, 4 options, Thai explanation, Return JSON Array.`;
 
-  return withRetry(async () => {
-    // สร้าง Instance ใหม่ทุกครั้งที่เรียกใช้ เพื่อใช้ Key ล่าสุด
-    const ai = new GoogleGenAI({ apiKey });
+  return callGemini(async (ai) => {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: {
@@ -101,19 +77,14 @@ export async function analyzeExamResults(
   questions: Question[], 
   userAnswers: (number | null)[]
 ): Promise<AnalysisResult> {
-  const apiKey = getApiKey();
-  if (!apiKey) throw new Error("API_KEY_INVALID");
-
   const history = questions.map((q, i) => ({
     topic: q.topic,
     correct: q.correctIndex === userAnswers[i]
   }));
 
-  const prompt = `Analyze this performance: ${JSON.stringify(history)}
-  Return JSON with: summary (Thai), strengths (array), weaknesses (array), readingAdvice (Thai)`;
+  const prompt = `Analyze this performance: ${JSON.stringify(history)}. Return JSON with summary (Thai), strengths (array), weaknesses (array), readingAdvice (Thai).`;
 
-  return withRetry(async () => {
-    const ai = new GoogleGenAI({ apiKey });
+  return callGemini(async (ai) => {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: prompt,
@@ -131,7 +102,6 @@ export async function analyzeExamResults(
         }
       }
     });
-    const text = response.text || "{}";
-    return JSON.parse(text);
+    return JSON.parse(response.text || "{}");
   });
 }

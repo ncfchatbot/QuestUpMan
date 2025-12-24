@@ -15,12 +15,13 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [userAnswers, setUserAnswers] = useState<(number | null)[]>([]);
   
-  // ปรับให้เริ่มต้นเป็น true เสมอ เพื่อให้ผู้ใช้ได้ลองกดใช้งานก่อน
+  // ปรับให้เป็น true ไว้ก่อน เพื่อลดการวนลูปหน้าแรก
   const [hasKey, setHasKey] = useState<boolean>(true);
   const [isBillingError, setIsBillingError] = useState<boolean>(false);
+  const [apiRawError, setApiRawError] = useState<string>("");
 
   useEffect(() => {
-    // โหลดข้อมูลผู้ใช้จาก Session
+    // โหลดข้อมูลผู้ใช้
     try {
       const savedUser = sessionStorage.getItem('questup_user');
       if (savedUser && savedUser !== 'undefined') {
@@ -28,23 +29,25 @@ export default function App() {
         setView('setup');
       }
     } catch (e) {
-      console.error("Failed to load user session", e);
+      console.error("Session load error", e);
     }
   }, []);
 
   const handleConnectKey = async () => {
     try {
-      // เรียกหน้าต่างเลือก Key
       if ((window as any).aistudio?.openSelectKey) {
         await (window as any).aistudio.openSelectKey();
-        // กฎสำคัญ: หลังจาก trigger openSelectKey ให้ถือว่าสำเร็จและไปต่อได้เลย
+        
+        // ตามกฎ Race Condition: เมื่อกดเลือกแล้ว ให้ถือว่าสำเร็จและสลัดลูปทิ้งทันที
         setHasKey(true);
         setIsBillingError(false);
-        // รีเฟรชหน้าเพื่อให้ Instance ของ Gemini โหลด Key ใหม่
-        setTimeout(() => window.location.reload(), 300);
+        setApiRawError("");
+        
+        // แจ้งเตือนผู้ใช้เล็กน้อย
+        console.log("Key selection triggered. App state reset.");
       }
     } catch (e) {
-      console.error("Connection failed", e);
+      console.error("Select Key Error", e);
     }
   };
 
@@ -64,6 +67,7 @@ export default function App() {
     if (!user) return;
     setIsLoading(true);
     setIsBillingError(false);
+    setApiRawError("");
 
     try {
       const questions = await generateExamFromFile(files, grade, lang, count, weakTopics);
@@ -80,15 +84,16 @@ export default function App() {
       setUserAnswers(new Array(questions.length).fill(null));
       setView('quiz');
     } catch (err: any) {
-      const msg = err.message || "";
-      console.error("API Error Trace:", msg);
+      const msg = err.message || "Unknown Error";
+      console.error("QuestUp API Error:", msg);
+      setApiRawError(msg);
 
-      // ถ้าเกิด Error เกี่ยวกับ Key หรือ Billing จริงๆ ค่อยโชว์หน้าแจ้งเตือน
-      if (msg.includes("billing") || msg.includes("403") || msg.includes("not found") || msg.includes("API_KEY_INVALID") || msg.includes("project")) {
+      // ถ้าเจอ Error เกี่ยวกับโปรเจกต์หรือสิทธิ์การใช้งาน
+      if (msg.includes("not found") || msg.includes("billing") || msg.includes("403") || msg.includes("401")) {
         setIsBillingError(true);
         setHasKey(false);
       } else {
-        alert("ระบบขัดข้องชั่วคราว (ลองเปลี่ยนไปใช้ไฟล์ขนาดเล็กลง): " + msg);
+        alert("เกิดข้อผิดพลาด: " + msg);
       }
     } finally {
       setIsLoading(false);
@@ -112,53 +117,49 @@ export default function App() {
         onManageKey={handleConnectKey}
       />
       
-      {/* หน้าจอแจ้งเตือน (Overlay) - จะปรากฏเฉพาะเมื่อกดแล้ว "พัง" จริงๆ เท่านั้น */}
+      {/* หน้าจอแจ้งเตือนปัญหา (Overlay) - ปรับปรุงให้ไม่วนลูปและมีข้อมูล Error จริง */}
       {isBillingError && (
-        <div className="fixed inset-0 z-[100] bg-slate-900/90 backdrop-blur-lg flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-white rounded-[3rem] p-10 max-w-lg w-full text-center shadow-2xl border-t-[12px] border-indigo-600 animate-slideUp">
-            <div className="w-24 h-24 bg-rose-50 rounded-[2rem] flex items-center justify-center text-rose-600 mx-auto mb-8">
-              <i className="fas fa-exclamation-triangle text-4xl"></i>
+            <div className="w-20 h-20 bg-rose-50 rounded-3xl flex items-center justify-center text-rose-600 mx-auto mb-6">
+              <i className="fas fa-exclamation-triangle text-3xl"></i>
             </div>
             
-            <h2 className="text-3xl font-black text-slate-800 mb-4 tracking-tighter">
-              ตรวจพบปัญหาการเชื่อมต่อ
+            <h2 className="text-3xl font-black text-slate-800 mb-2 tracking-tighter">
+              การเชื่อมต่อถูกปฏิเสธ
             </h2>
+            <p className="text-slate-500 text-sm mb-6">Google AI แจ้งว่าโปรเจกต์ของคุณยังไม่พร้อมใช้งาน</p>
             
-            <div className="bg-slate-50 rounded-3xl p-6 text-left mb-8 border border-slate-100">
-              <p className="text-sm text-slate-700 font-bold mb-4">วิธีแก้ไข:</p>
-              <ul className="text-xs text-slate-500 space-y-4 font-medium">
-                <li className="flex gap-3">
-                  <span className="flex-shrink-0 w-5 h-5 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[10px]">1</span>
-                  <span>ไปที่ <b>Google AI Studio</b> และสร้าง API Key ใหม่ โดยเลือกโปรเจกต์ที่คุณผูกบัตรเครดิตไว้แล้ว (เช่น ตัวที่คุณใช้ในภาพ)</span>
-                </li>
-                <li className="flex gap-3">
-                  <span className="flex-shrink-0 w-5 h-5 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[10px]">2</span>
-                  <span>กดปุ่ม <b>"อัปเดตการเชื่อมต่อ"</b> แล้วเลือก Key ตัวนั้นครับ</span>
-                </li>
-              </ul>
+            <div className="bg-slate-50 rounded-2xl p-5 text-left mb-6 border border-slate-100">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">ข้อความจากระบบ (Raw Error):</p>
+              <code className="text-[10px] text-rose-500 block break-all font-mono bg-rose-50 p-2 rounded-lg border border-rose-100">
+                {apiRawError || "Project linkage failed or billing not active yet."}
+              </code>
             </div>
 
-            <button 
-              onClick={handleConnectKey}
-              className="w-full py-6 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xl shadow-xl transition-all active:scale-95 flex items-center justify-center gap-4"
-            >
-              อัปเดตการเชื่อมต่อ <i className="fas fa-sync-alt"></i>
-            </button>
+            <div className="space-y-3">
+              <button 
+                onClick={handleConnectKey}
+                className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3"
+              >
+                เลือก API Key ใหม่ <i className="fas fa-key"></i>
+              </button>
+              <button 
+                onClick={() => { setIsBillingError(false); setHasKey(true); }}
+                className="w-full py-4 text-slate-400 hover:text-slate-600 font-bold text-sm"
+              >
+                ลองกดใหม่อีกครั้ง (ถ้าผูกบัตรแล้ว)
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       <main className="container mx-auto px-4 py-8 max-w-4xl relative z-10">
         {isLoading && (
-          <div className="fixed inset-0 bg-white/90 z-50 flex flex-col items-center justify-center animate-fadeIn">
-            <div className="w-20 h-20 relative mb-6">
-              <div className="absolute inset-0 border-4 border-indigo-100 rounded-full"></div>
-              <div className="absolute inset-0 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <i className="fas fa-bolt text-indigo-600 animate-pulse text-2xl"></i>
-              </div>
-            </div>
-            <h3 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic">QuestUp is generating...</h3>
+          <div className="fixed inset-0 bg-white/95 z-50 flex flex-col items-center justify-center">
+            <div className="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <h3 className="text-xl font-black text-slate-800 tracking-tighter uppercase italic">QuestUp AI is thinking...</h3>
           </div>
         )}
 
@@ -177,14 +178,16 @@ export default function App() {
         )}
       </main>
 
-      {/* แถบสถานะมุมขวาล่างที่กดได้เสมอ */}
-      <button 
-        onClick={handleConnectKey}
-        className="fixed bottom-6 right-6 z-[60] bg-white/80 backdrop-blur-md border border-slate-200 px-4 py-2 rounded-2xl shadow-xl text-[10px] font-black text-slate-500 hover:bg-white transition-all active:scale-95 flex items-center gap-2"
-      >
-        <div className={`w-2 h-2 rounded-full ${isBillingError ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`}></div>
-        AI KEY MANAGER
-      </button>
+      {/* Floating Status Bar */}
+      <div className="fixed bottom-6 right-6 z-[60] flex gap-2">
+         <button 
+          onClick={handleConnectKey}
+          className="bg-white/90 backdrop-blur-md border border-slate-200 px-4 py-2 rounded-2xl shadow-xl text-[10px] font-black text-slate-500 hover:bg-white transition-all flex items-center gap-2"
+        >
+          <div className={`w-2 h-2 rounded-full ${isBillingError ? 'bg-rose-500' : 'bg-emerald-500'}`}></div>
+          RE-CONNECT AI
+        </button>
+      </div>
     </div>
   );
 }
